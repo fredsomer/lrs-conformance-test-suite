@@ -3049,6 +3049,7 @@
         var voidingId = helper.generateUUID();
         var statementRefId = helper.generateUUID();
         var voidingTime, untilVoidingTime;
+        var voidingVerb;
 
         before('persist voided statement', function (done) {
             var voidedTemplates = [
@@ -3058,7 +3059,8 @@
             voided = voided.statement;
             voided.id = voidedId;
             voided.verb.id = verb;
-
+console.log('Time Margin', helper.getTimeMargin());
+console.log('Voided Stmt', voided);
             request(helper.getEndpointAndAuth())
                 .post(helper.getEndpointStatements())
                 .headers(helper.addAllHeaders({}))
@@ -3075,7 +3077,9 @@
             voiding = voiding.statement;
             voiding.id = voidingId;
             voiding.object.id = voidedId;
-
+            voidingVerb = voiding.verb.id + '/' + helper.generateUUID();
+            voiding.verb.id = voidingVerb;
+console.log('Voiding Stmt', voiding);
             request(helper.getEndpointAndAuth())
                 .post(helper.getEndpointStatements())
                 .headers(helper.addAllHeaders({}))
@@ -3085,8 +3089,9 @@
                     if (err){
                         done(err);
                     } else {
-                        voidingTime = new Date(Date.now() - helper.getTimeMargin() - 10000).toISOString();
-                        untilVoidingTime = new Date(Date.now() + helper.getTimeMargin()).toISOString();
+                        voidingTime = new Date(Date.now() - helper.getTimeMargin() - 1000).toISOString();
+                        untilVoidingTime = new Date(Date.now() - helper.getTimeMargin()).toISOString();
+console.log("times", new Date(Date.now()).toISOString(), voidingTime, untilVoidingTime);
                         done();
                     }
                 });
@@ -3101,7 +3106,7 @@
             statementRef.id = statementRefId;
             statementRef.object.id = voidedId;
             statementRef.verb.id = verb;
-
+console.log('Statement Ref', statementRef, new Date(Date.now()).toISOString());
             request(helper.getEndpointAndAuth())
                 .post(helper.getEndpointStatements())
                 .headers(helper.addAllHeaders({}))
@@ -3124,6 +3129,7 @@
                         done(err);
                     } else {
                         var results = parse(res.body, done);
+console.log('since test', results.statements);
                         expect(results).to.have.property('statements');
                         expect(JSON.stringify(results.statements)).to.contain(statementRefId);
                         done();
@@ -3133,9 +3139,10 @@
 
         it('should only return voiding statement when using "until"', function (done) {
             var query = helper.getUrlEncoding({
-                verb: "http://adlnet.gov/expapi/verbs/voided",
+                verb: voidingVerb,
                 until: untilVoidingTime
             });
+console.log('looking for:', query);
             request(helper.getEndpointAndAuth())
                 .get(helper.getEndpointStatements() + '?' + query)
                 .headers(helper.addAllHeaders({}))
@@ -3146,10 +3153,12 @@
                     } else {
                         try {
                             var results = parse(res.body, done);
+console.log('until test', results.statements);
                             expect(results).to.have.property('statements');
                             expect(JSON.stringify(results.statements)).to.contain(voidingId);
                             done();
                         } catch (e) {
+                            // Checks for unwieldy error messages because of 100 statements, and substitutes a more concise message
                             if (e.message.length > 400) {
                                 e.message = "expected results to have property 'statements' containing " + voidingId;
                             }
@@ -3173,6 +3182,7 @@
                         done(err);
                     } else {
                         var results = parse(res.body, done);
+console.log('limit test', results.statements);
                         expect(results).to.have.property('statements');
                         expect(results.statements).to.have.length(1);
                         expect(results.statements[0]).to.have.property('id').to.equal(statementRefId);
@@ -3194,6 +3204,7 @@
                         done(err);
                     } else {
                         var results = parse(res.body, done);
+console.log('none test', results.statements);
                         expect(results).to.have.property('statements');
                         expect(results.statements).to.have.length(2);
                         expect(results.statements[0]).to.have.property('id').to.equal(statementRefId);
